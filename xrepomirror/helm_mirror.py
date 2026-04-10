@@ -69,7 +69,7 @@ def _helm_registry_login(host: str, username: str, password: str, proxy_env: Dic
     return True
 
 
-def _push_nexus3(chart_path: Path, dest_repo: str, proxy_env: Dict[str, str]) -> None:
+def _push_nexus3(chart_path: Path, dest_repo: str) -> None:
     """Upload a chart archive to a Nexus 3 helm hosted repository via REST API."""
     # dest_repo expected format: <host>/<repository-name>  e.g. repo.bcr.io/helm
     parts = dest_repo.split("/", 1)
@@ -78,22 +78,15 @@ def _push_nexus3(chart_path: Path, dest_repo: str, proxy_env: Dict[str, str]) ->
     host, repo_name = parts
     url = f"https://{host}/service/rest/v1/components?repository={repo_name}"
 
-    proxies: Dict[str, str] = {}
-    if "https_proxy" in proxy_env:
-        proxies["https"] = proxy_env["https_proxy"]
-    elif "HTTPS_PROXY" in proxy_env:
-        proxies["https"] = proxy_env["HTTPS_PROXY"]
-    if "http_proxy" in proxy_env:
-        proxies["http"] = proxy_env["http_proxy"]
-    elif "HTTP_PROXY" in proxy_env:
-        proxies["http"] = proxy_env["HTTP_PROXY"]
-
+    # Do NOT pass an explicit proxies dict — let requests read HTTP_PROXY /
+    # HTTPS_PROXY / NO_PROXY from the environment so that NO_PROXY exclusions
+    # are honoured correctly.  apply_env_vars() has already placed all proxy
+    # settings (and NO_PROXY) into os.environ before we get here.
     print(f"  uploading to Nexus3 at {url}")
     with chart_path.open("rb") as fh:
         response = requests.post(
             url,
             files={"helm.asset": (chart_path.name, fh, "application/gzip")},
-            proxies=proxies or None,
             timeout=120,
         )
 
@@ -104,7 +97,6 @@ def _push_nexus3(chart_path: Path, dest_repo: str, proxy_env: Dict[str, str]) ->
             response = requests.post(
                 url,
                 files={"helm.asset": (chart_path.name, fh, "application/gzip")},
-                proxies=proxies or None,
                 timeout=120,
                 auth=(username, password),
             )
@@ -196,7 +188,7 @@ def mirror_charts(helm_charts: List[Dict[str, Any]], dest_repo: str, dest_type: 
 
             print(f"  pushing {chart_path.name}")
             if dest_type == "nexus3":
-                _push_nexus3(chart_path, dest_repo, proxy_env)
+                _push_nexus3(chart_path, dest_repo)
             else:
                 _push_oci(chart_path, dest_repo, proxy_env)
 

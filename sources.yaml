@@ -21,9 +21,9 @@ sources:
 settings:
   destination_repositories:
     docker:
-      repo: ctr.bcr.io
+      repo: ctr.bcr.local
     helm:
-      repo: repo.bcr.io/helm
+      repo: repo.bcr.local/helm
       type: nexus3
   env_vars:
     HTTP_PROXY: http://proxy.local:8080
