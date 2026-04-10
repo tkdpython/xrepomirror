@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "xrepomirror"
+version = "0.1.0"
+description = "A CLI tool to mirror helm charts and docker images from public registries to local/private repositories."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+keywords = ["helm", "docker", "mirror", "registry", "devops"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "PyYAML>=6.0",
+    "requests>=2.28.0",
+]
+
+[project.scripts]
+xrepomirror = "xrepomirror.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/tkdpython/xrepomirror"
+Repository = "https://github.com/tkdpython/xrepomirror"
+Issues = "https://github.com/tkdpython/xrepomirror/issues"
