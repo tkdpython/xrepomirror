@@ -12,14 +12,9 @@ from .helm_mirror import mirror_charts
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="xrepomirror",
-        description=(
-            "Mirror docker images and helm charts from public registries "
-            "to local/private repositories."
-        ),
+        description=("Mirror docker images and helm charts from public registries to local/private repositories."),
     )
-    parser.add_argument(
-        "--version", action="version", version=f"%(prog)s {__version__}"
-    )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument(
         "--sources",
         default="sources.yaml",
@@ -60,10 +55,11 @@ def main() -> None:
     # available when pulling/pushing images and charts.
     apply_env_vars(settings)
 
-    dest_repos = (settings.get("destination_repositories") or {})
+    dest_repos = settings.get("destination_repositories") or {}
     docker_dest = (dest_repos.get("docker") or {}).get("repo", "")
     helm_dest = (dest_repos.get("helm") or {}).get("repo", "")
     helm_type = (dest_repos.get("helm") or {}).get("type", "oci")
+    helm_ssl_verify = (dest_repos.get("helm") or {}).get("ssl_verify", True)
 
     docker_images = sources.get("docker_images") or []
     helm_charts = sources.get("helm_charts") or []
@@ -78,8 +74,7 @@ def main() -> None:
                     file=sys.stderr,
                 )
             else:
-                print(f"=== Mirroring {len(docker_images)} docker image(s) "
-                      f"to {docker_dest} ===")
+                print(f"=== Mirroring {len(docker_images)} docker image(s) to {docker_dest} ===")
                 mirror_images(docker_images, docker_dest)
         else:
             print("No docker images defined in sources.yaml.")
@@ -94,9 +89,8 @@ def main() -> None:
                     file=sys.stderr,
                 )
             else:
-                print(f"\n=== Mirroring {len(helm_charts)} helm chart(s) "
-                      f"to {helm_dest} (type: {helm_type}) ===")
-                mirror_charts(helm_charts, helm_dest, dest_type=helm_type)
+                print(f"\n=== Mirroring {len(helm_charts)} helm chart(s) to {helm_dest} (type: {helm_type}) ===")
+                mirror_charts(helm_charts, helm_dest, dest_type=helm_type, ssl_verify=helm_ssl_verify)
         else:
             print("No helm charts defined in sources.yaml.")
 

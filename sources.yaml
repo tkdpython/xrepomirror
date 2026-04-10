@@ -25,6 +25,7 @@ settings:
     helm:
       repo: repo.bcr.local/helm
       type: nexus3
+      ssl_verify: false
   env_vars:
     HTTP_PROXY: http://proxy.local:8080
     HTTPS_PROXY: http://proxy.local:8080

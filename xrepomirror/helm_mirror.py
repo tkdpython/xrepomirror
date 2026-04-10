@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
+import urllib3
 
 from .config import get_proxy_env
 
@@ -69,7 +70,7 @@ def _helm_registry_login(host: str, username: str, password: str, proxy_env: Dic
     return True
 
 
-def _push_nexus3(chart_path: Path, dest_repo: str) -> None:
+def _push_nexus3(chart_path: Path, dest_repo: str, ssl_verify: bool = True) -> None:
     """Upload a chart archive to a Nexus 3 helm hosted repository via REST API."""
     # dest_repo expected format: <host>/<repository-name>  e.g. repo.bcr.io/helm
     parts = dest_repo.split("/", 1)
@@ -77,6 +78,9 @@ def _push_nexus3(chart_path: Path, dest_repo: str) -> None:
         raise ValueError(f"nexus3 dest repo must be '<host>/<repo-name>', got: '{dest_repo}'")
     host, repo_name = parts
     url = f"https://{host}/service/rest/v1/components?repository={repo_name}"
+
+    if not ssl_verify:
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     # Do NOT pass an explicit proxies dict — let requests read HTTP_PROXY /
     # HTTPS_PROXY / NO_PROXY from the environment so that NO_PROXY exclusions
@@ -88,6 +92,7 @@ def _push_nexus3(chart_path: Path, dest_repo: str) -> None:
             url,
             files={"helm.asset": (chart_path.name, fh, "application/gzip")},
             timeout=120,
+            verify=ssl_verify,
         )
 
     if response.status_code in (401, 403):
@@ -99,6 +104,7 @@ def _push_nexus3(chart_path: Path, dest_repo: str) -> None:
                 files={"helm.asset": (chart_path.name, fh, "application/gzip")},
                 timeout=120,
                 auth=(username, password),
+                verify=ssl_verify,
             )
 
     if response.status_code not in (200, 201, 204):
@@ -109,10 +115,12 @@ def _push_nexus3(chart_path: Path, dest_repo: str) -> None:
         raise SystemExit(1)
 
 
-def _push_oci(chart_path: Path, dest_repo: str, proxy_env: Dict[str, str]) -> None:
+def _push_oci(chart_path: Path, dest_repo: str, proxy_env: Dict[str, str], ssl_verify: bool = True) -> None:
     """Push a chart archive to an OCI-compatible registry using helm push."""
     oci_ref = f"oci://{dest_repo}"
     cmd = ["helm", "push", str(chart_path), oci_ref]
+    if not ssl_verify:
+        cmd.append("--insecure-skip-tls-verify")
 
     # First attempt – capture stderr so we can inspect it for auth errors.
     returncode, stderr = _run_capturing(cmd, extra_env=proxy_env)
@@ -135,12 +143,17 @@ def _push_oci(chart_path: Path, dest_repo: str, proxy_env: Dict[str, str]) -> No
         raise SystemExit(returncode)
 
 
-def mirror_charts(helm_charts: List[Dict[str, Any]], dest_repo: str, dest_type: str = "oci") -> None:
+def mirror_charts(
+    helm_charts: List[Dict[str, Any]], dest_repo: str, dest_type: str = "oci", ssl_verify: bool = True
+) -> None:
     """Pull each helm chart and push it to *dest_repo*.
 
     *dest_type* controls how charts are uploaded:
     - ``"nexus3"`` – uploads via the Nexus 3 REST API.
     - anything else (including ``"oci"``) – uses ``helm push`` with an OCI ref.
+
+    *ssl_verify* controls TLS certificate verification for the destination.
+    Set to ``False`` only when the destination uses a self-signed certificate.
     """
     proxy_env = get_proxy_env()
 
@@ -188,9 +201,9 @@ def mirror_charts(helm_charts: List[Dict[str, Any]], dest_repo: str, dest_type: 
 
             print(f"  pushing {chart_path.name}")
             if dest_type == "nexus3":
-                _push_nexus3(chart_path, dest_repo)
+                _push_nexus3(chart_path, dest_repo, ssl_verify=ssl_verify)
             else:
-                _push_oci(chart_path, dest_repo, proxy_env)
+                _push_oci(chart_path, dest_repo, proxy_env, ssl_verify=ssl_verify)
 
             # Remove the archive so the tmpdir stays clean between iterations
             chart_path.unlink()
