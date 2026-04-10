@@ -70,8 +70,18 @@ def _helm_registry_login(host: str, username: str, password: str, proxy_env: Dic
     return True
 
 
-def _push_nexus3(chart_path: Path, dest_repo: str, ssl_verify: bool = True) -> None:
-    """Upload a chart archive to a Nexus 3 helm hosted repository via REST API."""
+def _push_nexus3(
+    chart_path: Path,
+    dest_repo: str,
+    ssl_verify: bool = True,
+    auth: Optional[Tuple[str, str]] = None,
+) -> Optional[Tuple[str, str]]:
+    """Upload a chart archive to a Nexus 3 helm hosted repository via REST API.
+
+    Returns the ``(username, password)`` used for authentication (or ``None``
+    if no auth was needed) so the caller can cache and reuse credentials across
+    multiple chart uploads without prompting again.
+    """
     # dest_repo expected format: <host>/<repository-name>  e.g. repo.bcr.io/helm
     parts = dest_repo.split("/", 1)
     if len(parts) != 2:
@@ -93,28 +103,37 @@ def _push_nexus3(chart_path: Path, dest_repo: str, ssl_verify: bool = True) -> N
             files={"helm.asset": (chart_path.name, fh, "application/gzip")},
             timeout=120,
             verify=ssl_verify,
+            auth=auth or None,
         )
 
     # Nexus 3 sometimes returns 400 with "Not authorized" in the body instead
     # of a proper 401/403, so check the response text as a fallback.
     if response.status_code in (401, 403) or (response.status_code == 400 and _is_auth_error(response.text)):
         host = dest_repo.split("/")[0]
-        username, password = _prompt_credentials(host)
+        auth = _prompt_credentials(host)
         with chart_path.open("rb") as fh:
             response = requests.post(
                 url,
                 files={"helm.asset": (chart_path.name, fh, "application/gzip")},
                 timeout=120,
-                auth=(username, password),
+                auth=auth,
                 verify=ssl_verify,
             )
 
     if response.status_code not in (200, 201, 204):
+        # Nexus 3 returns 400 "does not allow updating assets" when redeploy is
+        # disabled and the asset already exists in the repository.  Treat this
+        # as a no-op — the chart is already present at the destination.
+        if response.status_code == 400 and "does not allow updating assets" in response.text.lower():
+            print("  skipped (already exists in destination repo) \u21b7")
+            return auth
         print(
             f"ERROR: Nexus3 upload failed ({response.status_code}): {response.text}",
             file=sys.stderr,
         )
         raise SystemExit(1)
+
+    return auth
 
 
 def _push_oci(chart_path: Path, dest_repo: str, proxy_env: Dict[str, str], ssl_verify: bool = True) -> None:
@@ -158,6 +177,7 @@ def mirror_charts(
     Set to ``False`` only when the destination uses a self-signed certificate.
     """
     proxy_env = get_proxy_env()
+    nexus3_auth: Optional[Tuple[str, str]] = None  # reused after first successful prompt
 
     with tempfile.TemporaryDirectory(prefix="xrepomirror_helm_") as tmpdir:
         for entry in helm_charts:
@@ -203,7 +223,7 @@ def mirror_charts(
 
             print(f"  pushing {chart_path.name}")
             if dest_type == "nexus3":
-                _push_nexus3(chart_path, dest_repo, ssl_verify=ssl_verify)
+                nexus3_auth = _push_nexus3(chart_path, dest_repo, ssl_verify=ssl_verify, auth=nexus3_auth)
             else:
                 _push_oci(chart_path, dest_repo, proxy_env, ssl_verify=ssl_verify)
 
