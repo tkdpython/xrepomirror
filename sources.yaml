@@ -1,0 +1,31 @@
+sources:
+  docker_images:
+    - source: docker.io/grafana/grafana:12.3.0
+    - source: ghcr.io/grafana/grafana-operator:v5.21.3
+    - source: quay.io/prometheus-operator/prometheus-config-reloader:v0.87.1
+    - source: quay.io/prometheus-operator/prometheus-operator:v0.87.1
+    - source: quay.io/prometheus/alertmanager:v0.30.0
+    - source: quay.io/prometheus/node-exporter:v1.10.2
+    - source: quay.io/prometheus/prometheus:v3.9.1
+    - source: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.17.0
+    - source: ghcr.io/jkroepke/kube-webhook-certgen:1.7.4
+
+  helm_charts:
+    - chart: kube-prometheus-stack
+      repo: https://prometheus-community.github.io/helm-charts
+      version: 80.13.3
+    - chart: grafana-operator
+      repo: https://grafana.github.io/helm-charts
+      version: 5.21.4
+
+settings:
+  destination_repositories:
+    docker:
+      repo: ctr.bcr.io
+    helm:
+      repo: repo.bcr.io/helm
+      type: nexus3
+  env_vars:
+    HTTP_PROXY: http://proxy.local:8080
+    HTTPS_PROXY: http://proxy.local:8080
+    NO_PROXY: .mycompany.co.uk,.svc,.local,localhost
