@@ -95,7 +95,9 @@ def _push_nexus3(chart_path: Path, dest_repo: str, ssl_verify: bool = True) -> N
             verify=ssl_verify,
         )
 
-    if response.status_code in (401, 403):
+    # Nexus 3 sometimes returns 400 with "Not authorized" in the body instead
+    # of a proper 401/403, so check the response text as a fallback.
+    if response.status_code in (401, 403) or (response.status_code == 400 and _is_auth_error(response.text)):
         host = dest_repo.split("/")[0]
         username, password = _prompt_credentials(host)
         with chart_path.open("rb") as fh:
