@@ -25,7 +25,7 @@ def _run(cmd: List[str], extra_env: Optional[Dict[str, str]] = None, cwd: Option
         raise SystemExit(result.returncode)
 
 
-_AUTH_HINTS = ("401", "403", "unauthorized", "authentication required", "credentials required")
+_AUTH_HINTS = ("401", "403", "unauthorized", "not authorized", "authentication required", "credentials required")
 
 
 def _run_capturing(
