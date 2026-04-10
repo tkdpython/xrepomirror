@@ -2,12 +2,12 @@
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict
 
 import yaml
 
 
-def load_sources(path: str = "sources.yaml") -> dict[str, Any]:
+def load_sources(path: str = "sources.yaml") -> Dict[str, Any]:
     """Load and return the sources configuration from a YAML file."""
     sources_path = Path(path)
     if not sources_path.exists():
@@ -22,20 +22,19 @@ def load_sources(path: str = "sources.yaml") -> dict[str, Any]:
     return data
 
 
-def apply_env_vars(settings: dict[str, Any]) -> None:
+def apply_env_vars(settings: Dict[str, Any]) -> None:
     """Apply env_vars from the settings block to the process environment.
 
     Values already set in the environment take precedence so that the operator
     can override anything at runtime without editing sources.yaml.
     """
-    env_vars: dict[str, str] = settings.get("env_vars") or {}
+    env_vars: Dict[str, str] = settings.get("env_vars") or {}
     for key, value in env_vars.items():
         if key not in os.environ:
             os.environ[key] = str(value)
 
 
-def get_proxy_env() -> dict[str, str]:
+def get_proxy_env() -> Dict[str, str]:
     """Return a dict of current proxy-related environment variables, if set."""
-    proxy_keys = ("HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY",
-                  "http_proxy", "https_proxy", "no_proxy")
-    return {k: v for k in proxy_keys if (v := os.environ.get(k))}
+    proxy_keys = ("HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy")
+    return {k: os.environ[k] for k in proxy_keys if k in os.environ}

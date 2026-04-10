@@ -1,22 +1,21 @@
 """Docker image mirroring logic for xrepomirror."""
 
+import os
 import subprocess
 import sys
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from .config import get_proxy_env
 
 
-def _run(cmd: list[str], extra_env: dict[str, str] | None = None) -> None:
+def _run(cmd: List[str], extra_env: Optional[Dict[str, str]] = None) -> None:
     """Run a subprocess command, streaming output to stdout/stderr."""
-    import os
     env = os.environ.copy()
     if extra_env:
         env.update(extra_env)
     result = subprocess.run(cmd, env=env)
     if result.returncode != 0:
-        print(f"ERROR: command failed (exit {result.returncode}): {' '.join(cmd)}",
-              file=sys.stderr)
+        print(f"ERROR: command failed (exit {result.returncode}): {' '.join(cmd)}", file=sys.stderr)
         raise SystemExit(result.returncode)
 
 
@@ -41,7 +40,7 @@ def _destination_ref(source: str, dest_repo: str) -> str:
     return f"{dest_repo.rstrip('/')}/{image_with_tag}"
 
 
-def mirror_images(docker_images: list[dict[str, Any]], dest_repo: str) -> None:
+def mirror_images(docker_images: List[Dict[str, Any]], dest_repo: str) -> None:
     """Pull each image from its source and push it to *dest_repo*."""
     proxy_env = get_proxy_env()
 
@@ -63,4 +62,4 @@ def mirror_images(docker_images: list[dict[str, Any]], dest_repo: str) -> None:
         print(f"  pushing  {destination}")
         _run(["docker", "push", destination], extra_env=proxy_env)
 
-        print(f"  done ✓")
+        print("  done \u2713")
