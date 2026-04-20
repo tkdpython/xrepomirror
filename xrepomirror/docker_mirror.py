@@ -19,25 +19,43 @@ def _run(cmd: List[str], extra_env: Optional[Dict[str, str]] = None) -> None:
         raise SystemExit(result.returncode)
 
 
-def _destination_ref(source: str, dest_repo: str) -> str:
+def _source_tag(source: str) -> str:
+    """Extract the tag from a source image reference, or 'latest' if absent."""
+    # Tag follows the last ':' that is not part of a port number (i.e. after a '/')
+    name_part = source.split("/")[-1]
+    if ":" in name_part:
+        return name_part.split(":", 1)[1]
+    return "latest"
+
+
+def _destination_ref(source: str, dest_repo: str, destination: str = "") -> str:
     """Compute the destination image reference.
 
-    The last path component and tag of the source image are preserved so that
-    ``docker.io/grafana/grafana:12.3.0`` becomes
-    ``<dest_repo>/grafana:12.3.0``.
-    """
-    # Strip the registry prefix (everything up to the first '/')
-    parts = source.split("/")
-    # Determine if the first segment is a registry host
-    # (contains a dot or a colon, or is "localhost")
-    if len(parts) > 1 and ("." in parts[0] or ":" in parts[0] or parts[0] == "localhost"):
-        remainder = "/".join(parts[1:])
-    else:
-        remainder = source
+    Three modes depending on *destination*:
 
-    # Use only the last path segment (image name + tag)
-    image_with_tag = remainder.split("/")[-1]
-    return f"{dest_repo.rstrip('/')}/{image_with_tag}"
+    1. ``destination`` includes a tag (e.g. ``grafana:superversion``):
+       ``<dest_repo>/grafana:superversion``
+
+    2. ``destination`` has no tag (e.g. ``grafana``):
+       ``<dest_repo>/grafana:<source_tag>``
+
+    3. No ``destination`` provided:
+       ``<dest_repo>/<full_source_ref>`` — the complete source reference
+       (including the original registry) is appended to the destination repo,
+       e.g. ``docker.io/grafana/grafana:12.3.0`` →
+       ``<dest_repo>/docker.io/grafana/grafana:12.3.0``.
+    """
+    base = dest_repo.rstrip("/")
+    if destination:
+        # Check whether a tag was supplied in the destination
+        dest_name_part = destination.split("/")[-1]
+        if ":" in dest_name_part:
+            return f"{base}/{destination}"
+        else:
+            tag = _source_tag(source)
+            return f"{base}/{destination}:{tag}"
+    # No destination override — append the full source reference
+    return f"{base}/{source}"
 
 
 def mirror_images(docker_images: List[Dict[str, Any]], dest_repo: str) -> None:
@@ -50,7 +68,7 @@ def mirror_images(docker_images: List[Dict[str, Any]], dest_repo: str) -> None:
             print("WARNING: skipping entry with no 'source' key.", file=sys.stderr)
             continue
 
-        destination = _destination_ref(source, dest_repo)
+        destination = _destination_ref(source, dest_repo, destination=entry.get("destination", ""))
         print(f"\n[docker] {source}  →  {destination}")
 
         print(f"  pulling  {source}")
